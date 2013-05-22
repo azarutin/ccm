@@ -467,13 +467,36 @@ class Node():
         args = [ '-h', host, '-p', str(port) , '--jmxport', str(self.jmx_port) ]
         return CliSession(subprocess.Popen([ cli ] + args, env=env, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE))
 
-    def set_log_level(self, new_level):
+    def set_log_level(self, new_level, class_name=None):
         known_level = [ 'TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR' ]
         if new_level not in known_level:
             raise common.ArgumentError("Unknown log level %s (use one of %s)" % (new_level, " ".join(known_level)))
 
         self.__log_level = new_level
         self.__update_log4j()
+        self.__update_log4j_per_class(self.__log_level_per_class_name, self.__class_name)
+        return self
+
+    def set_log_level_per_class(self, log_level=None, class_name=None):
+        if log_level != None and class_name != None:
+            self.__log_level_per_class_name = log_level
+            self.__class_name = class_name
+        else:
+            # take it from the cluster config. However, it seems that attrubutes with 
+            # value None are not accessable diretly 
+            try:
+                getattr(self.cluster, '__log_level_per_class_name')         
+                self.__log_level_per_class_name = self.cluster.__log_level_per_class_name
+            except AttributeError:
+                self.__log_level_per_class_name = None
+
+            try:
+                getattr(self.cluster, '.__class_name')
+                self.__class_name = class_name  = self.cluster.__class_name
+            except AttributeError:
+                self.__class_name = None
+
+
         return self
 
     def clear(self, clear_all = False, only_data = False):
@@ -692,6 +715,16 @@ class Node():
         append_pattern='log4j.rootLogger='
         l = self.__log_level
         common.replace_in_file(conf_file, append_pattern, append_pattern + l + ',stdout,R')
+
+    def __update_log4j_per_class(self, log_level, class_name):
+        if (log_level != None and class_name != None):
+            conf_file = os.path.join(self.get_conf_dir(), common.LOG4J_CONF)
+
+            # Setting the right log level
+            logger_pattern='log4j.logger'
+            full_logger_pattern = logger_pattern + '.' + class_name + '='
+            common.replace_or_add_into_file_tail(conf_file, full_logger_pattern, full_logger_pattern + log_level)
+            
 
     def __update_envfile(self):
         jmx_port_pattern='JMX_PORT='

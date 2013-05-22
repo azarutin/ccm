@@ -14,6 +14,8 @@ class Cluster():
         self.__log_level = "INFO"
         self.__path = path
         self.__version = None
+        self.__log_level_per_class_name = None 
+        self.__class_name =  None
         if create_directory:
             # we create the dir before potentially downloading to throw an error sooner if need be
             os.mkdir(self.get_path())
@@ -106,6 +108,7 @@ class Cluster():
             self.seeds.append(node)
         self.__update_config()
         node.data_center = data_center
+        node.set_log_level_per_class(self.__log_level_per_class_name, self.__class_name)
         node.set_log_level(self.__log_level)
         node._save()
         if data_center is not None:
@@ -153,6 +156,7 @@ class Cluster():
                         (str(0),  str(2000 + i * 100))[debug == True],
                         tk,
                         binary_interface=binary)
+            node.set_log_level_per_class(self.__log_level_per_class_name, self.__class_name)
             self.add(node, True, dc)
             self.__update_config()
         return self
@@ -224,6 +228,7 @@ class Cluster():
                         print "[%s ERROR] %s" % (node.name, line.rstrip('\n'))
                 if verbose:
                     print "----"
+                node.watch_log_for("Listening for thrift clients...")
 
         self.__update_pids(started)
 
@@ -263,6 +268,12 @@ class Cluster():
 
         for node in self.nodelist():
             node.set_log_level(new_level)
+
+    def set_log_level_per_class(self, log_level=None, class_name=None):
+        self.__log_level_per_class_name = log_level
+        self.__class_name = class_name
+
+        return self
 
     def nodetool(self, nodetool_cmd):
         for node in self.nodes.values():
